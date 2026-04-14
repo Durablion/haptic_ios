@@ -2,26 +2,49 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var ble: BLEManager
+    @State private var showScanner = false
 
     var body: some View {
-        VStack(spacing: 24) {
-            Text(ble.statusText)
-                .font(.headline)
-                .foregroundColor(ble.isConnected ? .green : .secondary)
-                .padding(.top, 16)
+        NavigationStack {
+            VStack(spacing: 24) {
+                Text(ble.statusText)
+                    .font(.headline)
+                    .foregroundColor(ble.isConnected ? .green : .secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
 
-            HStack(spacing: 16) {
-                BigButton(title: "LEFT", color: .blue) {
-                    ble.sendLeft()
+                HStack(spacing: 16) {
+                    BigButton(title: "LEFT", color: .blue) {
+                        ble.sendLeft()
+                    }
+                    BigButton(title: "RIGHT", color: .orange) {
+                        ble.sendRight()
+                    }
                 }
-                BigButton(title: "RIGHT", color: .orange) {
-                    ble.sendRight()
+                .padding(.horizontal, 16)
+                .padding(.bottom, 24)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .navigationTitle("Haptic Remote")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showScanner = true
+                    } label: {
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                    }
+                    .accessibilityLabel("BLE Devices")
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 24)
+            .sheet(isPresented: $showScanner) {
+                NavigationStack {
+                    ScannerView()
+                        .environmentObject(ble)
+                }
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
