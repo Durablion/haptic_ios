@@ -1,0 +1,20 @@
+## macOS
+.DS_Store
+
+## Xcode user data
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad/
+
+## Build
+build/
+DerivedData/
+*.ipa
+*.xcarchive
+
+## Swift Package Manager
+.build/
+Packages/
+Package.pins
+Package.resolved
+.swiftpm/
