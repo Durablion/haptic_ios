@@ -44,7 +44,7 @@ struct ContentView: View {
 
                     HStack {
                         Text("Interval")
-                        Slider(value: $intervalMs, in: 50...1000, step: 10)
+                        Slider(value: $intervalMs, in: 50...2550, step: 10)
                         Text("\(Int(intervalMs)) ms")
                             .monospacedDigit()
                             .frame(width: 72, alignment: .trailing)
