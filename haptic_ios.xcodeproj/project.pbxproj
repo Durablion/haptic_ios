@@ -11,6 +11,7 @@
 		1A0000000000000000000041 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000031 /* ContentView.swift */; };
 		1A0000000000000000000042 /* BLEManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000032 /* BLEManager.swift */; };
 		1A0000000000000000000045 /* ScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000035 /* ScannerView.swift */; };
+		1A0000000000000000000046 /* HapticPattern.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000036 /* HapticPattern.swift */; };
 		1A0000000000000000000043 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000033 /* Assets.xcassets */; };
 		1A0000000000000000000044 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000034 /* Preview Assets.xcassets */; };
 /* End PBXBuildFile section */
@@ -21,6 +22,7 @@
 		1A0000000000000000000031 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		1A0000000000000000000032 /* BLEManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLEManager.swift; sourceTree = "<group>"; };
 		1A0000000000000000000035 /* ScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScannerView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000036 /* HapticPattern.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticPattern.swift; sourceTree = "<group>"; };
 		1A0000000000000000000033 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1A0000000000000000000034 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -59,6 +61,7 @@
 				1A0000000000000000000031 /* ContentView.swift */,
 				1A0000000000000000000032 /* BLEManager.swift */,
 				1A0000000000000000000035 /* ScannerView.swift */,
+				1A0000000000000000000036 /* HapticPattern.swift */,
 				1A0000000000000000000033 /* Assets.xcassets */,
 				1A0000000000000000000006 /* Preview Content */,
 			);
@@ -147,6 +150,7 @@
 				1A0000000000000000000040 /* haptic_iosApp.swift in Sources */,
 				1A0000000000000000000042 /* BLEManager.swift in Sources */,
 				1A0000000000000000000045 /* ScannerView.swift in Sources */,
+				1A0000000000000000000046 /* HapticPattern.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

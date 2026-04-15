@@ -10,18 +10,35 @@ struct DiscoveredDevice: Identifiable, Equatable {
     var isConnected: Bool
 }
 
+// MARK: - Side selector
+
+enum HapticSide: UInt8, CaseIterable, Identifiable {
+    case left  = 0x01
+    case right = 0x02
+    case both  = 0x03
+
+    var id: UInt8 { rawValue }
+    var label: String {
+        switch self {
+        case .left:  return "L"
+        case .right: return "R"
+        case .both:  return "Both"
+        }
+    }
+}
+
 // MARK: - BLEManager
 
 final class BLEManager: NSObject, ObservableObject {
 
-    // Service / characteristic UUIDs must match haptic_ble_tapp.ino on the ESP32
-    static let serviceUUID        = CBUUID(string: "12345678-1234-1234-1234-123456789abc")
-    static let characteristicUUID = CBUUID(string: "abcd1234-ab12-ab12-ab12-abcdef123456")
-    static let preferredName      = "Haptics-ESP32"
+    /// Matches both haptic_ble_tapp.ino and rtk_haptics_bridge_v2.ino.
+    static let hapticServiceUUID        = CBUUID(string: "12345678-1234-1234-1234-123456789abc")
+    static let hapticCharacteristicUUID = CBUUID(string: "abcd1234-ab12-ab12-ab12-abcdef123456")
 
     // Published state for the UI
-    @Published var statusText: String = "Starting…"
+    @Published var statusText: String = "Tap the antenna icon to scan"
     @Published var isConnected: Bool = false
+    @Published var connectedName: String = ""
     @Published var discoveredDevices: [DiscoveredDevice] = []
     @Published var isDiscovering: Bool = false
 
@@ -39,10 +56,26 @@ final class BLEManager: NSObject, ObservableObject {
 
     // MARK: - Public API
 
-    func sendLeft()  { write(byte: 0x01) }
-    func sendRight() { write(byte: 0x02) }
+    /// Send a haptic command to the firmware.
+    /// Protocol (matches rtk_haptics_bridge_v2.ino):
+    ///   Byte 0: motor  (0x01=left, 0x02=right, 0x03=both)
+    ///   Byte 1: effect (DRV2605 effect 1..123)
+    ///   Byte 2: count  (repetitions)
+    ///   Byte 3: interval (×10 ms between pulses)
+    func send(side: HapticSide, effect: UInt8, count: UInt8 = 1, intervalMs: Int = 100) {
+        guard let peripheral = peripheral, let ch = writeChar else {
+            statusText = "Not connected"
+            return
+        }
+        let intv10 = UInt8(clamping: max(1, intervalMs / 10))
+        let payload: [UInt8] = [side.rawValue, max(1, min(123, effect)), max(1, count), intv10]
+        let data = Data(payload)
+        let type: CBCharacteristicWriteType =
+            ch.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+        peripheral.writeValue(data, for: ch, type: type)
+    }
 
-    /// Begin a wide scan that surfaces all named peripherals (for the scanner UI).
+    /// Start a wide scan that surfaces every named peripheral (scanner UI).
     func startDiscoveryScan() {
         guard central.state == .poweredOn else {
             statusText = "Bluetooth is not on"
@@ -64,7 +97,7 @@ final class BLEManager: NSObject, ObservableObject {
         if !isConnected { statusText = "Idle" }
     }
 
-    /// Connect to a specific peripheral chosen from the scanner list.
+    /// Connect to a peripheral chosen from the scanner list.
     func connect(to id: UUID) {
         guard let target = discoveryMap[id] else { return }
         stopDiscoveryScan()
@@ -80,26 +113,6 @@ final class BLEManager: NSObject, ObservableObject {
         manuallyDisconnected = true
         if let p = peripheral { central.cancelPeripheralConnection(p) }
     }
-
-    // MARK: - Internals
-
-    private func write(byte: UInt8) {
-        guard let peripheral = peripheral, let ch = writeChar else {
-            statusText = "Not connected"
-            return
-        }
-        var b = byte
-        let data = Data(bytes: &b, count: 1)
-        let type: CBCharacteristicWriteType =
-            ch.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
-        peripheral.writeValue(data, for: ch, type: type)
-    }
-
-    private func startAutoScan() {
-        guard central.state == .poweredOn else { return }
-        statusText = "Searching for \(Self.preferredName)…"
-        central.scanForPeripherals(withServices: [Self.serviceUUID])
-    }
 }
 
 // MARK: - CBCentralManagerDelegate
@@ -107,7 +120,7 @@ final class BLEManager: NSObject, ObservableObject {
 extension BLEManager: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
-        case .poweredOn:    startAutoScan()
+        case .poweredOn:    statusText = "Tap the antenna icon to scan"
         case .poweredOff:   statusText = "Bluetooth is off"
         case .unauthorized: statusText = "Bluetooth permission denied"
         case .unsupported:  statusText = "BLE not supported"
@@ -119,65 +132,50 @@ extension BLEManager: CBCentralManagerDelegate {
                         didDiscover peripheral: CBPeripheral,
                         advertisementData: [String : Any],
                         rssi RSSI: NSNumber) {
+        guard isDiscovering else { return }
 
-        // Discovery scan: surface every named device for the scanner UI.
-        if isDiscovering {
-            let id = peripheral.identifier
-            let advName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
-            let name = advName ?? peripheral.name ?? ""
-            guard !name.isEmpty else { return }
-            discoveryMap[id] = peripheral
-            let rssi = RSSI.intValue
-            let connected = isConnected && self.peripheral?.identifier == id
-            if let idx = discoveredDevices.firstIndex(where: { $0.id == id }) {
-                discoveredDevices[idx].rssi = rssi
-                discoveredDevices[idx].name = name
-                discoveredDevices[idx].isConnected = connected
-            } else {
-                discoveredDevices.append(
-                    DiscoveredDevice(id: id, name: name, rssi: rssi, isConnected: connected)
-                )
-            }
-            // Connected first, then strongest signal
-            discoveredDevices.sort { lhs, rhs in
-                if lhs.isConnected != rhs.isConnected { return lhs.isConnected }
-                return lhs.rssi > rhs.rssi
-            }
-            return
+        let id = peripheral.identifier
+        let advName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
+        let name = advName ?? peripheral.name ?? ""
+        guard !name.isEmpty else { return }
+        discoveryMap[id] = peripheral
+        let rssi = RSSI.intValue
+        let connected = isConnected && self.peripheral?.identifier == id
+        if let idx = discoveredDevices.firstIndex(where: { $0.id == id }) {
+            discoveredDevices[idx].rssi = rssi
+            discoveredDevices[idx].name = name
+            discoveredDevices[idx].isConnected = connected
+        } else {
+            discoveredDevices.append(
+                DiscoveredDevice(id: id, name: name, rssi: rssi, isConnected: connected)
+            )
         }
-
-        // Auto-scan: connect to the first matching ESP32.
-        central.stopScan()
-        self.peripheral = peripheral
-        peripheral.delegate = self
-        statusText = "Connecting…"
-        central.connect(peripheral)
+        discoveredDevices.sort { lhs, rhs in
+            if lhs.isConnected != rhs.isConnected { return lhs.isConnected }
+            return lhs.rssi > rhs.rssi
+        }
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         statusText = "Discovering services…"
-        peripheral.discoverServices([Self.serviceUUID])
+        peripheral.discoverServices([Self.hapticServiceUUID])
     }
 
     func centralManager(_ central: CBCentralManager,
                         didFailToConnect peripheral: CBPeripheral, error: Error?) {
         self.peripheral = nil
         isConnected = false
+        connectedName = ""
         statusText = "Failed to connect"
-        startAutoScan()
     }
 
     func centralManager(_ central: CBCentralManager,
                         didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         isConnected = false
         writeChar = nil
-        if manuallyDisconnected {
-            statusText = "Disconnected"
-            manuallyDisconnected = false
-        } else {
-            statusText = "Disconnected — searching…"
-            startAutoScan()
-        }
+        connectedName = ""
+        statusText = manuallyDisconnected ? "Disconnected" : "Lost connection"
+        manuallyDisconnected = false
     }
 }
 
@@ -186,13 +184,13 @@ extension BLEManager: CBCentralManagerDelegate {
 extension BLEManager: CBPeripheralDelegate {
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard let services = peripheral.services else {
-            statusText = "Service \(Self.serviceUUID) not found on this device"
+            statusText = "No services on this device"
             return
         }
         var found = false
-        for svc in services where svc.uuid == Self.serviceUUID {
+        for svc in services where svc.uuid == Self.hapticServiceUUID {
             found = true
-            peripheral.discoverCharacteristics([Self.characteristicUUID], for: svc)
+            peripheral.discoverCharacteristics([Self.hapticCharacteristicUUID], for: svc)
         }
         if !found {
             statusText = "Selected device has no haptic service"
@@ -203,10 +201,11 @@ extension BLEManager: CBPeripheralDelegate {
                     didDiscoverCharacteristicsFor service: CBService,
                     error: Error?) {
         guard let chars = service.characteristics else { return }
-        for c in chars where c.uuid == Self.characteristicUUID {
+        for c in chars where c.uuid == Self.hapticCharacteristicUUID {
             writeChar = c
             isConnected = true
-            statusText = "Connected to \(peripheral.name ?? Self.preferredName)"
+            connectedName = peripheral.name ?? "Unknown"
+            statusText = "Connected to \(connectedName)"
         }
     }
 }
